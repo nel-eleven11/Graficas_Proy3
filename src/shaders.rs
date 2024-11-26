@@ -353,6 +353,7 @@ fn sun_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     let x = fragment.vertex_position.x;
     let y = fragment.vertex_position.y;
     let time = uniforms.time as f32 * 0.01;
+    let position = fragment.vertex_position;
 
     let noise_value = uniforms.noise.get_noise_2d(x * zoom + time, y * zoom + time);
 
@@ -368,8 +369,14 @@ fn sun_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
         dark_spot_color
     };
 
+    // Add slight glow to simulate atmospheric scattering
+	// color entre rojo y anaranjado
+    let glow_color = Color::new(255, 69, 0); // Rojo anaranjado
+	let glow_factor = (1.0 - position.magnitude() / 10.0).clamp(0.0, 1.0);
+	let final_glow = glow_color * glow_factor * 0.1;
+
     let final_color = base_color.lerp(&noise_color, noise_value.clamp(0.0, 1.0));
-    final_color * fragment.intensity
+    final_color + final_glow * fragment.intensity
 }
 
 fn rocky_planet_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {

@@ -58,9 +58,9 @@ pub struct Spaceship {
 
 fn create_noise_for_planet(index: usize) -> FastNoiseLite {
     match index {
-        0 => create_lava_noise(),
+        0 => create_generic_noise(),
         1 => create_gas_giant_noise(),
-        2 => create_generic_noise(),
+        2 => create_lava_noise(),
         3 => create_ground_noise(),
         4 => create_cloud_noise(),
         5 => create_icy_noise(),
