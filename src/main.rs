@@ -16,6 +16,7 @@ mod fragment;
 mod shaders;
 mod camera;
 mod texture;
+mod normal_map;
 
 use framebuffer::Framebuffer;
 use vertex::Vertex;
@@ -25,6 +26,7 @@ use shaders::{vertex_shader, fragment_shader};
 use camera::Camera;
 use fastnoise_lite::{FastNoiseLite, NoiseType, FractalType};
 use texture::init_texture;
+use normal_map::init_normal_map;
 
 pub struct Uniforms {
     model_matrix: Mat4,
@@ -47,9 +49,15 @@ fn create_noise_for_planet(index: usize) -> FastNoiseLite {
         7 => create_generic_noise(),
         8 => create_generic_noise(),
         9 => create_generic_noise(),
-        ///10 => create_cloud_noise(),
+        10 => create_noise(),
         _ => create_generic_noise(),
     }
+}
+
+fn create_noise() -> FastNoiseLite {
+    let mut noise = FastNoiseLite::with_seed(1337);
+    noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+    noise
 }
 
 fn create_generic_noise() -> FastNoiseLite {
@@ -247,7 +255,8 @@ fn main() {
 	let obj = Obj::load("assets/model/sphere.obj").expect("Failed to load obj");
 	let vertex_arrays = obj.get_vertex_array(); 
 	let mut time = 0;
-    init_texture("assets/textures/earth.jpg").expect("Failed To load texture");
+    init_texture("assets/textures/ball.png").expect("Failed To load texture");
+    init_normal_map("assets/textures/ball_normal.png").expect("Failed To load normal map");
 
     let mut noises: Vec<Rc<FastNoiseLite>> = Vec::new();
     for i in 0..7 {
