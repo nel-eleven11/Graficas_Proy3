@@ -43,6 +43,10 @@ cd <Graficas_Proy3>
 Compilar y ejecutar:
 Asegúrate de tener instalado el compilador de Rust. Si no lo tienes, instálalo desde rustup.
 ```bash
+cargo build --release
+```
+
+```bash
 cargo run --release
 ```
 
