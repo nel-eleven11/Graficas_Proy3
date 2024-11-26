@@ -11,6 +11,7 @@ Este proyecto implementa un sistema solar interactivo renderizado en Rust, donde
 
 ### Video demostrativo
 
+[![Watch the video](https://img.youtube.com/jJR7EOxyCRU/0.jpg)](https://youtu.be/jJR7EOxyCRU)
 
 ---
 
