@@ -6,6 +6,12 @@ use core::num;
 use std::time::Duration;
 use std::f32::consts::PI;
 use std::rc::Rc;
+use winit::{
+    event::{Event, WindowEvent, DeviceEvent, ElementState, MouseButton, MouseScrollDelta, VirtualKeyCode},
+    event_loop::{ControlFlow, EventLoop},
+    dpi::PhysicalPosition,
+    window::WindowBuilder,
+};
 
 mod framebuffer;
 mod triangle;
@@ -253,17 +259,15 @@ fn render(
     }
 }
 
-fn switch_shader(current_shader: &mut u32, total_shaders: u32) {
-    *current_shader = (*current_shader + 1) % total_shaders;
-}
-
 
 fn main() {
+
     let window_width = 800;
     let window_height = 600;
     let framebuffer_width = 800;
     let framebuffer_height = 600;
     let frame_delay = Duration::from_millis(16);
+    let event_loop = EventLoop::new();
 
     let mut framebuffer = Framebuffer::new(framebuffer_width, framebuffer_height);
     let mut window = Window::new(
@@ -274,9 +278,6 @@ fn main() {
     )
     .unwrap();
 
-
-    window.set_position(500, 500);
-    window.update();
 
     framebuffer.set_background_color(0x333355);
 
@@ -292,12 +293,23 @@ fn main() {
         Vec3::new(0.0, 1.0, 0.0),    
     );  
 
+    let mut last_mouse_position = PhysicalPosition::new(0.0, 0.0);
+    let mut mouse_pressed = false;
+    let mut mouse_scroll_delta = 0.0;
+    let mut zoom_speed = 2.0;
+
+    let mut bird_eye_view_active = false; // Estado de la vista de pájaro
+    let default_camera_eye = camera.eye; // Guardar la posición inicial de la cámara
+    let default_camera_center = camera.center; // Guardar el centro inicial de la cámara
+
+
+
     let mut planets = vec![
         Planet::new("Sol", 6.0, 0.0, 0.0, 0.0, 0xFFFF00, 2),
         Planet::new("Mercurio", 0.7, 5.0, 0.04, 0.1, 0xffc300, 1),
         Planet::new("Venus", 1.0, 6.5, 0.03, 0.08, 0xe24e42, 0),
         Planet::new("Tierra", 1.2, 8.0, 0.02, 0.07, 0x0077be, 10),
-        Planet::new("Luna", 0.1, 8.2, 0.1, 0.1, 0xaaaaaa, 7),
+        Planet::new("Luna", 0.3, 8.2, 0.1, 0.1, 0xaaaaaa, 7),
         Planet::new("Marte", 0.8, 9.8, 0.01, 0.05, 0xd95d39, 3),
         Planet::new("Júpiter", 5.0, 14.0, 0.005, 0.03, 0xfff9a6, 5),
         Planet::new("Saturno", 4.0, 20.0, 0.004, 0.02, 0xc49c48, 6),
@@ -312,15 +324,13 @@ fn main() {
     let mut spaceship = Spaceship::new(
         "assets/models/tie-fighter.obj", // Ruta de tu modelo de nave
         Vec3::new(5.5, 1.5, 0.0),      // Cerca de la Tierra, en su órbita
-        0.1,                           // Escala pequeña
+        0.5,                           // Escala pequeña
         Vec3::new(0.0, 0.0, 0.0),      // Rotación inicial
         7,                             // Shader para la nave
     );
 
 	let mut time = 0;
     let skybox = Skybox::new(50000);
-
-    let mut vertex_arrays = planet_obj.get_vertex_array(); 
 
     let mut noises: Vec<Rc<FastNoiseLite>> = Vec::new();
     for i in 0..7 {
@@ -344,11 +354,31 @@ fn main() {
             break;
         }
         framebuffer.clear();
-        handle_input(&window, &mut camera, &mut spaceship);
+
+        let current_mouse_position = window.get_mouse_pos(minifb::MouseMode::Discard).unwrap_or((0.0, 0.0));
+        let is_mouse_pressed = window.get_mouse_down(minifb::MouseButton::Left);
+        let simulated_scroll = 0.0; 
+
+        
+        handle_input(
+            &window,
+            &mut camera,
+            &mut spaceship,
+            is_mouse_pressed,
+            &mut last_mouse_position,
+            PhysicalPosition::new(current_mouse_position.0.into(), current_mouse_position.1.into()),
+            simulated_scroll,
+            &mut bird_eye_view_active,
+            default_camera_eye,
+            default_camera_center,
+        );
+
+        //print camera position
+        //println!("Camera position: {:?}", camera.eye);
+        //println!("Camera center: {:?}", camera.center);
+        
         let view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
-        //let projection_matrix = create_perspective_matrix(window_width as f32, window_height as f32);
-        //let viewport_matrix = create_viewport_matrix(framebuffer_width as f32, framebuffer_height as f32);
- 
+        
         skybox.render(&mut framebuffer, &uniforms, camera.eye);
 
         uniforms.model_matrix = create_model_matrix(translation, scale, rotation);
@@ -402,10 +432,23 @@ fn main() {
 }
 
 
-fn handle_input(window: &Window, camera: &mut Camera, spaceship: &mut Spaceship) {
+fn handle_input(
+    window: &Window, 
+    camera: &mut Camera, 
+    spaceship: &mut Spaceship,
+    mouse_pressed: bool,
+    last_mouse_position: &mut PhysicalPosition<f64>,
+    current_mouse_position: PhysicalPosition<f64>,
+    scroll_delta: f32,
+    bird_eye_view_active: &mut bool, // Nuevo parámetro para saber si la vista de pájaro está activa
+    default_camera_eye: Vec3,       // Posición inicial de la cámara
+    default_camera_center: Vec3,   // Centro inicial de la cámara
+) {
+
     let movement_speed = 0.90;
     let rotation_speed = PI/60.0;
     let zoom_speed = 0.1;
+    let mouse_sensitivity = 0.005; 
 
     //  camera orbit controls
     if window.is_key_down(Key::Left) {
@@ -459,5 +502,41 @@ fn handle_input(window: &Window, camera: &mut Camera, spaceship: &mut Spaceship)
     }
     if window.is_key_down(Key::K) {
         spaceship.update_position(Vec3::new(0.0, -0.1, 0.0));
+    }
+    // --- Zoom of the camera with the mouse scroll ---
+    if scroll_delta != 0.0 {
+        camera.zoom(scroll_delta * zoom_speed);
+    }
+
+    // --- Movement of the camera with the mouse ---
+    if mouse_pressed {
+       
+        let delta_x = (current_mouse_position.x - last_mouse_position.x) as f32 * mouse_sensitivity;
+        let delta_y = (current_mouse_position.y - last_mouse_position.y) as f32 * mouse_sensitivity;
+
+        // reload the camera with the new delta values
+        camera.orbit(-delta_x, -delta_y);
+    }
+
+    // Actualizar la última posición del mouse
+    *last_mouse_position = current_mouse_position;
+
+    // Activate bird eye view
+    if window.is_key_pressed(Key::B, minifb::KeyRepeat::No) {
+        if *bird_eye_view_active {
+            // return to the default camera position
+            camera.eye = default_camera_eye;
+            camera.center = default_camera_center;
+        } else {
+            // Change the camera to bird eye view
+            camera.eye = Vec3::new(-1.8119884e-7, 41.3152, 4.145346); 
+            camera.center = Vec3::new(-3.885724, 0.0, 2.7013676); // center of the scene
+        }
+
+        // Change the state of the bird eye view
+        *bird_eye_view_active = !*bird_eye_view_active;
+
+        // make sure the camera has changed
+        camera.has_changed = true;
     }
 }
