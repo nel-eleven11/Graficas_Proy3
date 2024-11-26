@@ -1,5 +1,4 @@
 // normal_map.rs
-
 use std::sync::Arc;
 use once_cell::sync::OnceCell;
 use nalgebra_glm::Vec3;

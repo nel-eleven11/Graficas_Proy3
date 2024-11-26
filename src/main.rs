@@ -17,6 +17,7 @@ mod shaders;
 mod camera;
 mod texture;
 mod normal_map;
+mod skybox;
 
 use framebuffer::Framebuffer;
 use vertex::Vertex;
@@ -27,6 +28,7 @@ use camera::Camera;
 use fastnoise_lite::{FastNoiseLite, NoiseType, FractalType};
 use texture::init_texture;
 use normal_map::init_normal_map;
+use skybox::Skybox;
 
 pub struct Uniforms {
     model_matrix: Mat4,
@@ -257,6 +259,7 @@ fn main() {
 	let mut time = 0;
     init_texture("assets/textures/ball.png").expect("Failed To load texture");
     init_normal_map("assets/textures/ball_normal.png").expect("Failed To load normal map");
+    let skybox = Skybox::new(50000);
 
     let mut noises: Vec<Rc<FastNoiseLite>> = Vec::new();
     for i in 0..7 {
@@ -299,6 +302,8 @@ fn main() {
         handle_input(&window, &mut camera);
 
         framebuffer.clear();
+
+        skybox.render(&mut framebuffer, &uniforms, camera.eye);
 
         uniforms.model_matrix = create_model_matrix(translation, scale, rotation);
         uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
