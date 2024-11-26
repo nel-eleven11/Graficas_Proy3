@@ -15,6 +15,7 @@ mod color;
 mod fragment;
 mod shaders;
 mod camera;
+mod texture;
 
 use framebuffer::Framebuffer;
 use vertex::Vertex;
@@ -23,6 +24,7 @@ use triangle::triangle;
 use shaders::{vertex_shader, fragment_shader};
 use camera::Camera;
 use fastnoise_lite::{FastNoiseLite, NoiseType, FractalType};
+use texture::init_texture;
 
 pub struct Uniforms {
     model_matrix: Mat4,
@@ -45,6 +47,7 @@ fn create_noise_for_planet(index: usize) -> FastNoiseLite {
         7 => create_generic_noise(),
         8 => create_generic_noise(),
         9 => create_generic_noise(),
+        ///10 => create_cloud_noise(),
         _ => create_generic_noise(),
     }
 }
@@ -244,6 +247,7 @@ fn main() {
 	let obj = Obj::load("assets/model/sphere.obj").expect("Failed to load obj");
 	let vertex_arrays = obj.get_vertex_array(); 
 	let mut time = 0;
+    init_texture("assets/textures/earth.jpg").expect("Failed To load texture");
 
     let mut noises: Vec<Rc<FastNoiseLite>> = Vec::new();
     for i in 0..7 {
@@ -274,7 +278,7 @@ fn main() {
             break;
         }
 
-        let number_of_planets = 9;
+        let number_of_planets = 10;
 
         // Cambiar el shader al presionar "S"
         if window.is_key_pressed(Key::C, minifb::KeyRepeat::No) {

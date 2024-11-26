@@ -8,6 +8,7 @@ use crate::color::Color;
 use rand::Rng;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
+use crate::texture::{Texture, with_texture};
 
 pub fn vertex_shader(vertex: &Vertex, uniforms: &Uniforms) -> Vertex {
 	// Transform position
@@ -48,6 +49,14 @@ pub fn vertex_shader(vertex: &Vertex, uniforms: &Uniforms) -> Vertex {
 	}
 }
 
+pub fn textured_fragment_shader(fragment: &Fragment, _uniforms: &Uniforms) -> Color {
+    let base_color = with_texture(&|texture: &Texture| {
+        texture.sample(fragment.tex_coords.x, fragment.tex_coords.y)
+    });
+    
+    base_color
+}
+
 pub fn fragment_shader(fragment: &Fragment, uniforms: &Uniforms, current_shader: u32) -> Color {
 
 	// Call the appropriate shader based on the current_shader value
@@ -62,8 +71,15 @@ pub fn fragment_shader(fragment: &Fragment, uniforms: &Uniforms, current_shader:
 		7 => moon_shader(fragment, uniforms),
         8 => atmospheric_shader(fragment, uniforms),
         9 => dynamic_surface_shader(fragment, uniforms),
+        10 => earth_texture_shader(fragment, uniforms),
         _ => Color::new(0, 0, 0),
 	}
+}
+
+fn earth_texture_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let texture_color = textured_fragment_shader(fragment, uniforms);
+    // Simular iluminación con el producto de intensidad
+    texture_color * fragment.intensity
 }
 
 fn atmospheric_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
