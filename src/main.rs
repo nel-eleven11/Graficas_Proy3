@@ -18,6 +18,7 @@ mod camera;
 mod texture;
 mod normal_map;
 mod skybox;
+mod planet;
 
 use framebuffer::Framebuffer;
 use vertex::Vertex;
@@ -29,6 +30,7 @@ use fastnoise_lite::{FastNoiseLite, NoiseType, FractalType};
 use texture::init_texture;
 use normal_map::init_normal_map;
 use skybox::Skybox;
+use planet::Planet;
 
 pub struct Uniforms {
     model_matrix: Mat4,
@@ -38,6 +40,15 @@ pub struct Uniforms {
     time: u32,
     noise: Rc<FastNoiseLite>,
 }
+
+pub struct Spaceship {
+    pub position: Vec3,
+    pub scale: f32,
+    pub rotation: Vec3,
+    pub model: Obj, // El modelo .obj cargado
+    pub shader_index: u32, // Shader que usará la nave
+}
+
 
 fn create_noise_for_planet(index: usize) -> FastNoiseLite {
     match index {
@@ -163,7 +174,7 @@ fn create_view_matrix(eye: Vec3, center: Vec3, up: Vec3) -> Mat4 {
 }
 
 fn create_perspective_matrix(window_width: f32, window_height: f32) -> Mat4 {
-    let fov = 45.0 * PI / 180.0;
+    let fov = 60.0 * PI / 180.0;
     let aspect_ratio = window_width / window_height;
     let near = 0.1;
     let far = 1000.0;
@@ -180,8 +191,34 @@ fn create_viewport_matrix(width: f32, height: f32) -> Mat4 {
     )
 }
 
-fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Vertex], current_shader: u32) {
+impl Spaceship {
+    pub fn new(model_path: &str, position: Vec3, scale: f32, rotation: Vec3, shader_index: u32) -> Self {
+        Spaceship {
+            position,
+            scale,
+            rotation,
+            model: Obj::load("assets/model/tie-fighter.obj").expect("Failed to load spaceship model"),
+            shader_index,
+        }
+    }
+
+    pub fn update_position(&mut self, direction: Vec3) {
+        self.position += direction;
+    }
+
+    pub fn get_model_matrix(&self) -> Mat4 {
+        create_model_matrix(self.position, self.scale, self.rotation)
+    }
+}
+
+fn render(
+    framebuffer: &mut Framebuffer,
+    uniforms: &Uniforms, 
+    vertex_array: &[Vertex], 
+    current_shader: u32
+) {
     let mut transformed_vertices = Vec::with_capacity(vertex_array.len());
+
     for vertex in vertex_array {
         let transformed = vertex_shader(vertex, uniforms);
         transformed_vertices.push(transformed);
@@ -230,12 +267,13 @@ fn main() {
 
     let mut framebuffer = Framebuffer::new(framebuffer_width, framebuffer_height);
     let mut window = Window::new(
-        "Graficas por Computadora Shaders",
+        "Graficas por Computadora - Solar System",
         window_width,
         window_height,
         WindowOptions::default(),
     )
     .unwrap();
+
 
     window.set_position(500, 500);
     window.update();
@@ -246,34 +284,50 @@ fn main() {
 	let translation = Vec3::new(0.0, 0.0, 0.0);
 	let rotation = Vec3::new(0.0, 0.0, 0.0);
 	let scale = 1.0f32;
-    let mut current_shader = 0; // Shader inicial
+
 	// camera parameters
 	let mut camera = Camera::new(
-        Vec3::new(0.0, 0.0, 5.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0)
+        Vec3::new(0.0, 10.0, 30.0),  
+        Vec3::new(0.0, 0.0, 0.0),    
+        Vec3::new(0.0, 1.0, 0.0),    
+    );  
+
+    let mut planets = vec![
+        Planet::new("Sol", 6.0, 0.0, 0.0, 0.0, 0xFFFF00, 2),
+        Planet::new("Mercurio", 0.7, 5.0, 0.04, 0.1, 0xffc300, 1),
+        Planet::new("Venus", 1.0, 6.5, 0.03, 0.08, 0xe24e42, 0),
+        Planet::new("Tierra", 1.2, 8.0, 0.02, 0.07, 0x0077be, 10),
+        Planet::new("Luna", 0.1, 8.2, 0.1, 0.1, 0xaaaaaa, 7),
+        Planet::new("Marte", 0.8, 9.8, 0.01, 0.05, 0xd95d39, 3),
+        Planet::new("Júpiter", 5.0, 14.0, 0.005, 0.03, 0xfff9a6, 5),
+        Planet::new("Saturno", 4.0, 20.0, 0.004, 0.02, 0xc49c48, 6),
+        Planet::new("Urano", 3.0, 25.0, 0.003, 0.01, 0x7ec8f7, 9),
+        Planet::new("Neptuno", 3.0, 29.0, 0.002, 0.009, 0x4a6dcd, 8),
+    ];
+
+    let planet_obj = Obj::load("assets/model/sphere.obj").expect("Failed to load obj");
+
+    let mut current_shader = 0; // Shader inicial
+
+    let mut spaceship = Spaceship::new(
+        "assets/models/tie-fighter.obj", // Ruta de tu modelo de nave
+        Vec3::new(5.5, 1.5, 0.0),      // Cerca de la Tierra, en su órbita
+        0.1,                           // Escala pequeña
+        Vec3::new(0.0, 0.0, 0.0),      // Rotación inicial
+        7,                             // Shader para la nave
     );
 
-	let obj = Obj::load("assets/model/sphere.obj").expect("Failed to load obj");
-	let vertex_arrays = obj.get_vertex_array(); 
 	let mut time = 0;
-    init_texture("assets/textures/ball.png").expect("Failed To load texture");
-    init_normal_map("assets/textures/ball_normal.png").expect("Failed To load normal map");
     let skybox = Skybox::new(50000);
+
+    let mut vertex_arrays = planet_obj.get_vertex_array(); 
 
     let mut noises: Vec<Rc<FastNoiseLite>> = Vec::new();
     for i in 0..7 {
         noises.push(Rc::new(create_noise_for_planet(i)));
     }
     
-    let mut planets = Vec::new();
     let generic_noise = Rc::new(create_generic_noise());
-    for (i, vertex_array) in vertex_arrays.chunks(3).enumerate() {
-        let noise = noises.get(i).unwrap_or(&generic_noise); // Usa ruido genérico si no hay otro disponible
-        planets.push((vertex_array, Rc::clone(noise))); // Clonamos la referencia
-    }
-
-    
     let projection_matrix = create_perspective_matrix(window_width as f32, window_height as f32);
     let viewport_matrix = create_viewport_matrix(framebuffer_width as f32, framebuffer_height as f32);
     let mut uniforms = Uniforms { 
@@ -289,20 +343,12 @@ fn main() {
         if window.is_key_down(Key::Escape) {
             break;
         }
-
-        let number_of_planets = 10;
-
-        // Cambiar el shader al presionar "S"
-        if window.is_key_pressed(Key::C, minifb::KeyRepeat::No) {
-            current_shader = (current_shader + 1) % number_of_planets; 
-        }
-
-        time += 1;
-
-        handle_input(&window, &mut camera);
-
         framebuffer.clear();
-
+        handle_input(&window, &mut camera, &mut spaceship);
+        let view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
+        //let projection_matrix = create_perspective_matrix(window_width as f32, window_height as f32);
+        //let viewport_matrix = create_viewport_matrix(framebuffer_width as f32, framebuffer_height as f32);
+ 
         skybox.render(&mut framebuffer, &uniforms, camera.eye);
 
         uniforms.model_matrix = create_model_matrix(translation, scale, rotation);
@@ -310,11 +356,44 @@ fn main() {
         uniforms.time = time;
         framebuffer.set_current_color(0xFFDDDD);
 
-        // Renderiza cada planeta con su ruido asignado
-        for (planet_index, (vertex_array, noise)) in planets.iter().enumerate() {
-            uniforms.noise = Rc::clone(noise); // Clona la referencia, no el valor
-            render(&mut framebuffer, &uniforms, vertex_array, current_shader);
+         // Renderizar los planetas
+         for planet in &mut planets {
+            planet.update_position();
+            let model_matrix = create_model_matrix(planet.get_position(), planet.radius, rotation);
+
+            let uniforms = Uniforms {
+                model_matrix,
+                view_matrix,
+                projection_matrix,
+                viewport_matrix,
+                time,
+                noise: create_noise().into(),
+            };
+
+            render(
+                &mut framebuffer,
+                &uniforms,
+                &planet_obj.get_vertex_array(),
+                planet.shader_index,
+            );
         }
+
+        // Renderizar la nave espacial
+        let spaceship_uniforms = Uniforms {
+            model_matrix: spaceship.get_model_matrix(),
+            view_matrix,
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noise: create_noise().into(),
+        };
+
+        render(
+            &mut framebuffer,
+            &spaceship_uniforms,
+            &spaceship.model.get_vertex_array(),
+            spaceship.shader_index,
+        );
 
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
@@ -323,7 +402,7 @@ fn main() {
 }
 
 
-fn handle_input(window: &Window, camera: &mut Camera) {
+fn handle_input(window: &Window, camera: &mut Camera, spaceship: &mut Spaceship) {
     let movement_speed = 0.90;
     let rotation_speed = PI/60.0;
     let zoom_speed = 0.1;
@@ -366,5 +445,19 @@ fn handle_input(window: &Window, camera: &mut Camera) {
     }
     if window.is_key_down(Key::Down) {
         camera.zoom(-zoom_speed);
+    }
+
+    // Control of the spaceship
+    if window.is_key_down(Key::J){
+        spaceship.update_position(Vec3::new(-0.1, 0.0, 0.0));
+    }
+    if window.is_key_down(Key::L) {
+        spaceship.update_position(Vec3::new(0.1, 0.0, 0.0));
+    }
+    if window.is_key_down(Key::I) {
+        spaceship.update_position(Vec3::new(0.0, 0.1, 0.0));
+    }
+    if window.is_key_down(Key::K) {
+        spaceship.update_position(Vec3::new(0.0, -0.1, 0.0));
     }
 }

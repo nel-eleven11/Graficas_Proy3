@@ -7,6 +7,7 @@ pub struct Framebuffer {
     pub zbuffer: Vec<f32>,
     background_color: u32,
     current_color: u32,
+    active_buffer: bool,
 }
 
 impl Framebuffer {
@@ -18,6 +19,7 @@ impl Framebuffer {
             zbuffer: vec![f32::INFINITY; width * height],
             background_color: 0x000000,
             current_color: 0xFFFFFF,
+            active_buffer: true,
         }
     }
 

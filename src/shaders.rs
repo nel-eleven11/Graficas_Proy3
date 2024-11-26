@@ -120,9 +120,13 @@ pub fn fragment_shader(fragment: &Fragment, uniforms: &Uniforms, current_shader:
 		7 => moon_shader(fragment, uniforms),
         8 => atmospheric_shader(fragment, uniforms),
         9 => dynamic_surface_shader(fragment, uniforms),
-        10 => earth_texture_shader(fragment, uniforms),
-        _ => Color::new(0, 0, 0),
+        10 => earth_clouds(fragment, uniforms),
+        _ => default_shader(fragment, uniforms),
 	}
+}
+
+fn default_shader(fragment: &Fragment, _uniforms: &Uniforms) -> Color {
+    fragment.color
 }
 
 fn earth_texture_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
@@ -144,6 +148,49 @@ fn atmospheric_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 
     let blend_factor = (noise_value + 1.0) / 2.0; // Escalar a rango [0, 1]
     base_color.lerp(&cloud_color, blend_factor)
+}
+
+fn earth_clouds(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let zoom = 80.0;
+    let x = fragment.vertex_position.x;
+    let y = fragment.vertex_position.y;
+    let t = uniforms.time as f32 * 0.1;
+
+    let surface_noise = uniforms.noise.get_noise_2d(x * zoom + t, y * zoom);
+
+    let ocean_color = Color::new(0, 105, 148);
+    let land_color = Color::new(34, 139, 34);
+    let desert_color = Color::new(210, 180, 140);
+    let snow_color = Color::new(255, 250, 250);
+
+    let snow_threshold = 0.7;
+    let land_threshold = 0.4;
+    let desert_threshold = 0.3;
+
+    let base_color = if y.abs() > snow_threshold {
+        snow_color
+    } else if surface_noise > land_threshold {
+        land_color
+    } else if surface_noise > desert_threshold {
+        desert_color
+    } else {
+        ocean_color
+    };
+
+    let cloud_zoom = 100.0;
+    let cloud_noise = uniforms.noise.get_noise_2d(x * cloud_zoom + t * 0.5, y * cloud_zoom + t * 0.5);
+
+    let cloud_color = Color::new(255, 255, 255);
+    let sky_gradient = Color::new(135, 206, 250);
+
+    let cloud_intensity = cloud_noise.clamp(0.4, 0.7) - 0.4;
+    let final_color = if cloud_noise > 0.6 {
+        base_color.lerp(&cloud_color, cloud_intensity * 0.5)
+    } else {
+        base_color.lerp(&sky_gradient, 0.1)
+    };
+
+    final_color * fragment.intensity
 }
 
 
@@ -302,29 +349,27 @@ fn lava_planet_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 }
 
 fn sun_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
-    let position = fragment.vertex_position;
-    let distance = position.magnitude(); // Distancia del centro
+    let zoom = 50.0;
+    let x = fragment.vertex_position.x;
+    let y = fragment.vertex_position.y;
+    let time = uniforms.time as f32 * 0.01;
 
-    // Base colors for the star
-    let core_color = Color::new(255, 204, 0); // Brillante amarillo
-    let edge_color = Color::new(255, 69, 0);  // Naranja más oscuro
+    let noise_value = uniforms.noise.get_noise_2d(x * zoom + time, y * zoom + time);
 
-    // Noise to create surface turbulence
-    let noise_value = uniforms.noise.get_noise_3d(position.x * 10.0, position.y * 10.0, uniforms.time as f32 * 0.01);
-    let turbulence = noise_value.abs();
+    let bright_color = Color::new(255, 255, 102); // Amarillo brillante
+    let dark_spot_color = Color::new(139, 0, 0);  // Rojo oscuro
+    let base_color = Color::new(255, 69, 0);      // Superficie roja/anaranjada
 
-    // Blend core and edge colors based on distance from center
-    let blend_factor = (distance - 0.2).clamp(0.0, 1.0);
-    let base_color = core_color.lerp(&edge_color, blend_factor);
+    let spot_threshold = 0.6;
 
-    // Add dynamic turbulence effect
-    let dynamic_color = base_color * (1.0 + turbulence * 0.3);
+    let noise_color = if noise_value < spot_threshold {
+        bright_color
+    } else {
+        dark_spot_color
+    };
 
-    // Glow effect based on proximity to the center
-    let glow_factor = (1.0 - distance).clamp(0.0, 1.0).powi(2);
-    let glow_color = Color::new(255, 255, 224) * glow_factor;
-
-    dynamic_color + glow_color
+    let final_color = base_color.lerp(&noise_color, noise_value.clamp(0.0, 1.0));
+    final_color * fragment.intensity
 }
 
 fn rocky_planet_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
