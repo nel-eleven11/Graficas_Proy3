@@ -20,7 +20,6 @@ Dependencias
 Este proyecto utiliza varias bibliotecas de Rust para el manejo de gráficos, entrada de usuario, y ruido. Asegúrate de incluir las siguientes dependencias en tu archivo Cargo.toml:
 
 ```toml
-Copy code
 [dependencies]
 nalgebra-glm = "0.15"        # Librería para matemáticas 3D (vectores, matrices, etc.)
 minifb = "0.18.0"           # Ventana gráfica simple
@@ -37,7 +36,6 @@ rand = "0.8.5"              # Generador de números aleatorios`
 
 Clonar el repositorio:
 ```bash
-Copy code
 git clone <https://github.com/nel-eleven11/Graficas_Proy3>
 cd <Graficas_Proy3>
 ```
@@ -45,7 +43,6 @@ cd <Graficas_Proy3>
 Compilar y ejecutar:
 Asegúrate de tener instalado el compilador de Rust. Si no lo tienes, instálalo desde rustup.
 ```bash
-Copy code
 cargo run --release
 ```
 
